@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AAML Decoder v2.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1e3a5f;
+      --primary-light: #2c5282;
+      --accent: #e07020;
+      --accent-hover: #c55a10;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --text: #1a202c;
+      --text-muted: #718096;
+      --border: #e2e8f0;
+      --success: #38a169;
+      --error: #e53e3e;
+      --warning: #d69e2e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.5px;
+    }
+
+    .logo h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+
+    .logo span {
+      font-size: 13px;
+      opacity: 0.7;
+      font-weight: 400;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.15);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.25);
+    }
+
+    /* Main Layout */
+    main {
+      display: grid;
+      grid-template-columns: 280px 1fr 300px;
+      gap: 0;
+      height: calc(100vh - 80px);
+    }
+
+    /* Sidebar - Notes */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sidebar-header button {
+      background: none;
+      border: none;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .notes-section {
+      padding: 8px 0;
+    }
+
+    .notes-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      background: var(--bg);
+    }
+
+    .note-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s ease;
+    }
+
+    .note-item:hover {
+      background: var(--bg);
+    }
+
+    .note-id {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: var(--primary);
+      margin-bottom: 2px;
+    }
+
+    .note-title {
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .note-aliases {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      font-style: italic;
+    }
+
+    .note-party {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg);
+      color: var(--text-muted);
+      display: inline-block;
+      margin-top: 4px;
+    }
+
+    .note-party.claimant { background: #e6f3ff; color: #1e5ea8; }
+    .note-party.respondent { background: #fde8e8; color: #9b2c2c; }
+
+    /* Editor Area */
+    .editor-area {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+    }
+
+    .editor-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .title-input {
+      font-size: 16px;
+      font-weight: 500;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      width: 300px;
+      padding: 8px 0;
+    }
+
+    .title-input:focus {
+      outline: none;
+      border-bottom: 2px solid var(--primary);
+    }
+
+    .mode-toggle {
+      display: flex;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .mode-btn {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      color: var(--text-muted);
+    }
+
+    .mode-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .mode-btn:hover:not(.active) {
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .toolbar-right {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-validate {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-validate:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .btn-render {
+      background: var(--accent);
+      border: none;
+      color: white;
+      padding: 10px 24px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-render:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-render:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Editor */
+    .editor-container {
+      flex: 1;
+      padding: 20px;
+      overflow: hidden;
+    }
+
+    #editor {
+      width: 100%;
+      height: 100%;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      resize: none;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    #editor:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.1);
+    }
+
+    /* Output Panel */
+    .output-panel {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .output-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .output-content {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    .output-empty {
+      color: var(--text-muted);
+      font-size: 14px;
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .output-success {
+      background: #f0fff4;
+      border: 1px solid #9ae6b4;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .output-success h4 {
+      color: var(--success);
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .output-link {
+      display: block;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      word-break: break-all;
+      margin-top: 8px;
+    }
+
+    .output-link:hover {
+      text-decoration: underline;
+    }
+
+    .output-error {
+      background: #fff5f5;
+      border: 1px solid #feb2b2;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .output-error h4 {
+      color: var(--error);
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .output-warnings {
+      background: #fffff0;
+      border: 1px solid #faf089;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .output-warnings h4 {
+      color: var(--warning);
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .output-warnings ul {
+      font-size: 12px;
+      padding-left: 16px;
+      color: var(--text-muted);
+    }
+
+    .validation-stats {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat-row:last-child {
+      border-bottom: none;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* Loading state */
+    .loading {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .loading.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Insert Reference Helper */
+    .insert-helper {
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      background: #f0f7ff;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .insert-helper code {
+      background: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <div class="logo-icon">AA</div>
+      <div>
+        <h1>AAML Decoder</h1>
+        <span>v2.0 — Typst PDF + Web Export</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-secondary" onclick="reloadNotes()">↻ Reload Notes</button>
+      <button class="btn-secondary" onclick="showHelp()">? Help</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Sidebar: Available Notes -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        Available Documents
+        <button onclick="reloadNotes()">Refresh</button>
+      </div>
+      <div id="notesList">
+        <div class="output-empty">Loading documents...</div>
+      </div>
+    </aside>
+
+    <!-- Editor Area -->
+    <section class="editor-area">
+      <div class="editor-toolbar">
+        <div class="toolbar-left">
+          <input type="text" class="title-input" id="docTitle" placeholder="Document Title" value="Claimant's Memorial">
+          <div class="mode-toggle">
+            <button class="mode-btn active" data-mode="pdf" onclick="setMode('pdf')">PDF Export</button>
+            <button class="mode-btn" data-mode="web" onclick="setMode('web')">Web Export</button>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn-validate" onclick="validateContent()">Validate</button>
+          <button class="btn-render" id="renderBtn" onclick="renderContent()">Render →</button>
+        </div>
+      </div>
+
+      <div class="editor-container">
+        <textarea id="editor" placeholder="Enter your AAML content here...
+
+AAML v1.1.1 Reference Syntax:
+
+# Heading
+
+The Claimant submits this Memorial. [[contract|cl. 1.1]]
+
+References use the simple format: [[identifier]] or [[identifier|pinpoint]]
+
+You can reference by:
+• Filename: [[Construction Contract.pdf|cl. 8.3]]
+• UID: [[3E39|p. 2]]
+• Alias: [[contract]] or [[tecmed|para. 154]]
+
+Internal references: [[#anchor-name]]
+Anchors: {#anchor-name}"></textarea>
+      </div>
+    </section>
+
+    <!-- Output Panel -->
+    <aside class="output-panel">
+      <div class="output-header">Output</div>
+      <div class="output-content" id="outputContent">
+        <div class="output-empty">
+          <p>Enter AAML content and click <strong>Render</strong> to generate output.</p>
+          <p style="margin-top: 12px; font-size: 12px;">Use <strong>PDF Export</strong> for print-ready documents with footnotes.</p>
+          <p style="font-size: 12px;">Use <strong>Web Export</strong> for tablet-friendly reading with clickable references.</p>
+        </div>
+      </div>
+      <div class="loading" id="loadingIndicator">
+        <div class="spinner"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    // State
+    let currentMode = 'pdf';
+    let notes = [];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadNotes();
+    });
+
+    // Load available notes
+    async function loadNotes() {
+      try {
+        const res = await fetch('/api/notes');
+        notes = await res.json();
+        renderNotesList();
+      } catch (err) {
+        console.error('Failed to load notes:', err);
+        document.getElementById('notesList').innerHTML =
+          '<div class="output-error"><h4>Error loading notes</h4><p>' + err.message + '</p></div>';
+      }
+    }
+
+    // Render notes list grouped by type
+    function renderNotesList() {
+      const container = document.getElementById('notesList');
+
+      if (notes.length === 0) {
+        container.innerHTML = '<div class="output-empty">No documents found.<br>Add .md files to the Notes folder.</div>';
+        return;
+      }
+
+      // Group by type
+      const grouped = {
+        exhibit: notes.filter(n => n.type === 'exhibit'),
+        authority: notes.filter(n => n.type === 'authority'),
+        witness: notes.filter(n => n.type === 'witness'),
+        expert: notes.filter(n => n.type === 'expert'),
+        procedural: notes.filter(n => n.type === 'procedural'),
+        section: notes.filter(n => n.type === 'section'),
+        table: notes.filter(n => n.type === 'table'),
+        figure: notes.filter(n => n.type === 'figure'),
+        note: notes.filter(n => n.type === 'note')
+      };
+
+      const typeLabels = {
+        exhibit: 'Fact Exhibits',
+        authority: 'Legal Authorities',
+        witness: 'Witness Statements',
+        expert: 'Expert Reports',
+        procedural: 'Procedural Documents',
+        section: 'Sections',
+        table: 'Tables',
+        figure: 'Figures',
+        note: 'Notes'
+      };
+
+      let html = '';
+
+      for (const [type, items] of Object.entries(grouped)) {
+        if (items.length === 0) continue;
+
+        const label = typeLabels[type] || type;
+        html += `<div class="notes-section">
+          <div class="notes-section-title">${label} (${items.length})</div>`;
+
+        for (const note of items) {
+          const partyClass = note.party || 'claimant';
+          // Use UID if available, otherwise use id
+          const refId = note.uid || note.id;
+          // Show aliases if available
+          const aliasText = note.aliases && note.aliases.length > 0
+            ? note.aliases.slice(0, 2).join(', ')
+            : '';
+
+          html += `<div class="note-item" onclick="insertReference('${refId}')" title="Click to insert [[${refId}]]">
+            <div class="note-id">[[${refId}]]</div>
+            <div class="note-title">${note.title}</div>
+            ${aliasText ? `<div class="note-aliases">Also: ${aliasText}</div>` : ''}
+            ${note.party ? `<span class="note-party ${partyClass}">${note.party}</span>` : ''}
+          </div>`;
+        }
+
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    // Insert reference at cursor (AAML v1.1.1 style - no prefix)
+    function insertReference(id) {
+      const editor = document.getElementById('editor');
+      const ref = `[[${id}]]`;
+
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      const text = editor.value;
+
+      editor.value = text.substring(0, start) + ref + text.substring(end);
+      editor.focus();
+      editor.selectionStart = editor.selectionEnd = start + ref.length;
+    }
+
+    // Set export mode
+    function setMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+    }
+
+    // Validate content
+    async function validateContent() {
+      const content = document.getElementById('editor').value;
+      const output = document.getElementById('outputContent');
+
+      if (!content.trim()) {
+        output.innerHTML = '<div class="output-error"><h4>No content</h4><p>Enter some AAML content first.</p></div>';
+        return;
+      }
+
+      showLoading(true);
+
+      try {
+        const res = await fetch('/api/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+
+        const data = await res.json();
+
+        let html = '';
+
+        if (data.valid) {
+          html += '<div class="output-success"><h4>✓ Valid AAML</h4><p>No errors found.</p></div>';
+        } else {
+          html += '<div class="output-error"><h4>✗ Validation Errors</h4><ul>';
+          for (const err of data.errors) {
+            html += `<li>${err}</li>`;
+          }
+          html += '</ul></div>';
+        }
+
+        if (data.warnings && data.warnings.length > 0) {
+          html += '<div class="output-warnings"><h4>⚠ Warnings</h4><ul>';
+          for (const warn of data.warnings) {
+            html += `<li>${warn}</li>`;
+          }
+          html += '</ul></div>';
+        }
+
+        html += `<div class="validation-stats">
+          <div class="stat-row"><span class="stat-label">References</span><span class="stat-value">${data.references}</span></div>
+          <div class="stat-row"><span class="stat-label">Anchors</span><span class="stat-value">${data.anchors}</span></div>
+          <div class="stat-row"><span class="stat-label">Paragraphs</span><span class="stat-value">${data.paragraphs}</span></div>
+        </div>`;
+
+        output.innerHTML = html;
+
+      } catch (err) {
+        output.innerHTML = '<div class="output-error"><h4>Error</h4><p>' + err.message + '</p></div>';
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // Render content
+    async function renderContent() {
+      const content = document.getElementById('editor').value;
+      const title = document.getElementById('docTitle').value || 'AAML Document';
+      const output = document.getElementById('outputContent');
+
+      if (!content.trim()) {
+        output.innerHTML = '<div class="output-error"><h4>No content</h4><p>Enter some AAML content first.</p></div>';
+        return;
+      }
+
+      showLoading(true);
+      document.getElementById('renderBtn').disabled = true;
+
+      try {
+        const res = await fetch('/api/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, mode: currentMode, title })
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+          output.innerHTML = '<div class="output-error"><h4>Render Error</h4><p>' + data.error + '</p></div>';
+          return;
+        }
+
+        let html = `<div class="output-success">
+          <h4>✓ ${currentMode.toUpperCase()} Generated</h4>
+          <p>File: ${data.filename}</p>
+          <a href="${data.url}" target="_blank" class="output-link">Open ${currentMode.toUpperCase()} →</a>
+        </div>`;
+
+        if (data.warnings && data.warnings.length > 0) {
+          html += '<div class="output-warnings"><h4>⚠ Warnings</h4><ul>';
+          for (const warn of data.warnings) {
+            html += `<li>${warn}</li>`;
+          }
+          html += '</ul></div>';
+        }
+
+        output.innerHTML = html;
+
+        // Open in new tab
+        window.open(data.url, '_blank');
+
+      } catch (err) {
+        output.innerHTML = '<div class="output-error"><h4>Error</h4><p>' + err.message + '</p></div>';
+      } finally {
+        showLoading(false);
+        document.getElementById('renderBtn').disabled = false;
+      }
+    }
+
+    // Reload notes
+    async function reloadNotes() {
+      try {
+        await fetch('/api/reload', { method: 'POST' });
+        await loadNotes();
+      } catch (err) {
+        console.error('Failed to reload:', err);
+      }
+    }
+
+    // Show/hide loading
+    function showLoading(show) {
+      document.getElementById('loadingIndicator').classList.toggle('active', show);
+    }
+
+    // Help dialog
+    function showHelp() {
+      alert(`AAML Decoder v2.0
+AI-Native Arbitration Markup Language (Typst PDF + Web Export)
+
+REFERENCE SYNTAX (AAML v1.1.1):
+
+Document References:
+  [[identifier]] or [[identifier|pinpoint]]
+
+  Reference by filename:
+    [[Construction Contract.pdf|cl. 8.3]]
+
+  Reference by UID:
+    [[3E39|p. 2]]
+
+  Reference by alias:
+    [[contract]] or [[tecmed|para. 154]]
+
+Internal References:
+  [[#anchor-name]] — Cross-reference within document
+
+Figure/Table References:
+  [[fig:site-plan]] — Figure reference
+  [[tbl:delay-summary]] — Table reference
+
+ANCHORS:
+  {#anchor-name} — Define at end of paragraph
+
+DOCUMENTS:
+  Place .md files in Notes/{exhibits,authorities,witness,experts}/
+  Each document needs YAML frontmatter with uid, type, title
+
+EXPORT MODES:
+  PDF: A4 with numbered paragraphs and footnotes
+  Web: Interactive tablet-friendly view with popups`);
+    }
+  </script>
+</body>
+</html>

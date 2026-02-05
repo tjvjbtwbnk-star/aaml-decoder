@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Memorial</title>
+  <style>
+    :root {
+      --primary: #1a365d;
+      --primary-light: #2c5282;
+      --accent: #ed8936;
+      --bg: #fafafa;
+      --text: #2d3748;
+      --text-light: #718096;
+      --border: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Charter', 'Georgia', serif;
+      font-size: 18px;
+      line-height: 1.7;
+      color: var(--text);
+      background: var(--bg);
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 40px 24px 100px;
+    }
+
+    header {
+      margin-bottom: 48px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid var(--primary);
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 32px 0 12px 0;
+      line-height: 1.3;
+      text-transform: uppercase;
+    }
+
+    .doc-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 0 0 8px 0;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-light);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 28px 0 10px 0;
+    }
+
+    h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary-light);
+      margin: 22px 0 8px 0;
+    }
+
+    h4, h5, h6 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary-light);
+      margin: 18px 0 6px 0;
+    }
+
+    .para-numbered {
+      display: flex;
+      margin-bottom: 16px;
+      padding: 8px 0;
+    }
+
+    .para-number {
+      min-width: 42px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-light);
+      padding-top: 4px;
+      flex-shrink: 0;
+    }
+
+    .para-content {
+      flex: 1;
+    }
+
+    ul, ol {
+      margin: 8px 0 16px 42px;
+      padding: 0;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, #cbd5e1, transparent);
+      margin: 32px 0;
+    }
+
+    .ref-marker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+      background: var(--accent);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+      vertical-align: super;
+      margin: 0 2px;
+      padding: 0 6px;
+    }
+
+    .ref-marker:hover {
+      background: var(--primary);
+      transform: scale(1.1);
+    }
+
+    .ref-marker:active {
+      transform: scale(0.95);
+    }
+
+    .ref-inline {
+      font-style: italic;
+      color: var(--primary-light);
+    }
+
+    .ref-unknown {
+      color: #cc0000;
+      font-style: italic;
+    }
+
+    blockquote {
+      margin: 20px 0 20px 42px;
+      padding: 14px 18px;
+      background: white;
+      border-left: 4px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      font-style: italic;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 15px;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    strong {
+      font-weight: 700;
+    }
+
+    em {
+      font-style: italic;
+    }
+
+    /* Popup overlay */
+    .popup-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .popup-overlay.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+    }
+
+    .popup {
+      background: white;
+      border-radius: 16px;
+      max-width: 90%;
+      max-height: 80vh;
+      width: 500px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      transform: translateY(20px);
+      transition: transform 0.2s ease;
+    }
+
+    .popup-overlay.active .popup {
+      transform: translateY(0);
+    }
+
+    .popup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: var(--primary);
+      color: white;
+    }
+
+    .popup-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .popup-ref-num {
+      background: var(--accent);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .popup-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease;
+    }
+
+    .popup-close:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .popup-body {
+      padding: 20px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .popup-resolved {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+
+    .popup-note-title {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .popup-content {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-light);
+      white-space: pre-wrap;
+    }
+
+    .popup-pinpoint {
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #fef3c7;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #92400e;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        font-size: 17px;
+      }
+
+      .container {
+        padding: 24px 16px 80px;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+
+      .popup {
+        width: 95%;
+        max-height: 85vh;
+      }
+
+      .ref-marker {
+        min-width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="doc-title">Test Memorial</h1>
+      <div class="subtitle">AAML Web Export • 2/3/2026</div>
+    </header>
+
+    <main>
+      <h1>I.<span style="display:inline-block;width:0.8em"></span>Test Memorial</h1>
+<div class="para-numbered">
+      <span class="para-number">1.</span>
+      <div class="para-content">This is a test submission referencing <sup class="ref-marker" data-ref="1">1</sup>.</div>
+    </div>
+<h2>A.<span style="display:inline-block;width:0.8em"></span>Background</h2>
+<div class="para-numbered">
+      <span class="para-number">2.</span>
+      <div class="para-content">The facts show that <span class="ref-unknown">[Unknown: contract]</span> applies here.</div>
+    </div>
+
+    </main>
+  </div>
+
+  <!-- Reference popup -->
+  <div class="popup-overlay" id="popupOverlay">
+    <div class="popup">
+      <div class="popup-header">
+        <div class="popup-title">Reference</div>
+        <span class="popup-ref-num" id="popupRefNum"></span>
+        <button class="popup-close" id="popupClose">&times;</button>
+      </div>
+      <div class="popup-body">
+        <div class="popup-resolved" id="popupResolved"></div>
+        <div class="popup-note-title" id="popupNoteTitle"></div>
+        <div class="popup-content" id="popupContent"></div>
+        <div class="popup-pinpoint" id="popupPinpoint" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const refData = [{"number":1,"resolved":"Exhibit C-1, p. 1","noteId":"PMKB","title":"Email from Miroslav Horák to Ivana Petrović re Proposed kick-off meeting agenda, 2019-01-17, dated 17 January 2019","content":"# EMAIL\n\n**From:** Miroslav Horák <m.horak@spcc-jv.com>  \n**To:** Ivana Petrović <i.petrovic@beu.bd>  \n**Cc:** Tomáš Králík <t.kralik@spcc-jv.com>; Dr. Miloš Vladić <m.vladic@beu.bd>  \n**Date:** 17 January 2019, 14:35  \n**Subject:** Proposed kick-off meeting agenda\n\nDear Ivana,\n\nFollowing the exchange of letters between our respective Project Directors, I am pleased to send through a proposed agenda for our kick-off meeting. I understand from our telephone conversation this morning that Monday, 21 January would work well for both sides, and we are happy to meet at BEU's offices in Szohôd.\n\n**Proposed Agenda:**\n\n1. **Introductions and Project Organisation** (30 min)\n   - Key personnel from each party\n   - Organisation charts and communication protocols\n   - Contact details distribution\n\n2. **Contract Administration Procedures** (45 min)\n   - Communication procedures and document control\n   - Meeting schedule (weekly progress meetings, monthly PMMs, etc.)\n   - Submittal procedures and review timelines\n   - Payment procedures and schedule\n\n3. **Programme Review** (45 min)\n   - Discussion of preliminary programme\n   - Key milestones and interfaces\n   - Reporting requirements\n\n4. **Site Handover and Mobilisation** (30 min)\n   - Site access and possession procedures\n   - Site establishment requirements\n   - Security and access control arrangements\n\n5. **Design and Engineering** (30 min)\n   - Design submission schedule\n   - Review and approval procedures\n   - Interface management\n\n6. **HSE and Quality** (30 min)\n   - HSE Plan review\n   - Quality Plan overview\n   - Emergency procedures\n\n7. **Next Steps and Actions** (20 min)\n\n**Logistics:**\n- Proposed time: 09:00 - 14:00 (including working lunch)\n- Venue: BEU offices, Szohôd\n- SPCC attendees: Approximately 8-10 people (list to follow)\n\nCould you please confirm if this agenda is acceptable and provide details of the specific meeting room location? We will arrange our own transport from Klow.\n\nI also wanted to mention that Dr. Heinrich Weber from DPI has indicated his availability to attend, which I think would be beneficial for establishing the three-party working relationship from the outset.\n\nLooking forward to a productive meeting.\n\nBest regards,\n\n**Miroslav Horák**  \nProject Manager  \nSyldavian Power Construction Consortium  \nMobile: +421 905 123 456  \nEmail: m.horak@spcc-jv.com","pinpoint":"p. 1"}];
+
+    const overlay = document.getElementById('popupOverlay');
+    const closeBtn = document.getElementById('popupClose');
+
+    function closePopup() {
+      overlay.classList.remove('active');
+    }
+
+    function openPopup(refNum) {
+      const ref = refData.find(r => r.number === refNum);
+      if (!ref) return;
+
+      document.getElementById('popupRefNum').textContent = '#' + ref.number;
+      document.getElementById('popupResolved').textContent = ref.resolved;
+      document.getElementById('popupNoteTitle').textContent = ref.title;
+      document.getElementById('popupContent').textContent = ref.content.substring(0, 500) + (ref.content.length > 500 ? '...' : '');
+
+      const pinpointEl = document.getElementById('popupPinpoint');
+      if (ref.pinpoint) {
+        pinpointEl.textContent = 'Pinpoint: ' + ref.pinpoint;
+        pinpointEl.style.display = 'block';
+      } else {
+        pinpointEl.style.display = 'none';
+      }
+
+      overlay.classList.add('active');
+    }
+
+    closeBtn.addEventListener('click', closePopup);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closePopup();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePopup();
+    });
+
+    document.querySelectorAll('.ref-marker').forEach(marker => {
+      marker.addEventListener('click', () => {
+        const refNum = parseInt(marker.dataset.ref, 10);
+        openPopup(refNum);
+      });
+    });
+  </script>
+</body>
+</html>
