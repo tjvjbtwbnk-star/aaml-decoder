@@ -77,7 +77,10 @@ function markdownToTypst(content, registry, notesRegistry) {
   // Convert markdown formatting BEFORE processing references
   // This ensures footnote content (which uses Typst-native syntax) isn't affected
 
-  // Convert markdown headings to Typst
+  // Convert markdown headings to Typst (most specific first to avoid partial matches)
+  result = result.replace(/^###### (.+)$/gm, '====== $1');
+  result = result.replace(/^##### (.+)$/gm, '===== $1');
+  result = result.replace(/^#### (.+)$/gm, '==== $1');
   result = result.replace(/^### (.+)$/gm, '=== $1');
   result = result.replace(/^## (.+)$/gm, '== $1');
   result = result.replace(/^# (.+)$/gm, '= $1');

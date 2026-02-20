@@ -45,6 +45,33 @@ function toCapitalLetter(num) {
 }
 
 /**
+ * Convert number to lowercase letter (1=a, 2=b, etc.)
+ */
+function toLowerLetter(num) {
+  return String.fromCharCode(96 + num);
+}
+
+/**
+ * Convert number to lowercase Roman numeral (1=i, 2=ii, etc.)
+ */
+function toLowerRoman(num) {
+  const romanNumerals = [
+    ['m', 1000], ['cm', 900], ['d', 500], ['cd', 400],
+    ['c', 100], ['xc', 90], ['l', 50], ['xl', 40],
+    ['x', 10], ['ix', 9], ['v', 5], ['iv', 4], ['i', 1]
+  ];
+  let result = '';
+  let remaining = num;
+  for (const [numeral, value] of romanNumerals) {
+    while (remaining >= value) {
+      result += numeral;
+      remaining -= value;
+    }
+  }
+  return result;
+}
+
+/**
  * Format date from YYYY-MM-DD to "dated DD Month YYYY"
  */
 function formatDate(dateStr) {
@@ -644,6 +671,9 @@ function addHierarchicalNumberingWeb(html) {
   let h1Counter = 0;
   let h2Counter = 0;
   let h3Counter = 0;
+  let h4Counter = 0;
+  let h5Counter = 0;
+  let h6Counter = 0;
   let paraNumber = 1;
 
   // Split by H1 to add section dividers
@@ -658,6 +688,9 @@ function addHierarchicalNumberingWeb(html) {
       h1Counter++;
       h2Counter = 0;
       h3Counter = 0;
+      h4Counter = 0;
+      h5Counter = 0;
+      h6Counter = 0;
       const roman = toRoman(h1Counter);
       processed = processed.replace(/<h1>([\s\S]*?)<\/h1>/i, `<h1>${roman}.<span style="display:inline-block;width:0.8em"></span>$1</h1>`);
 
@@ -672,6 +705,9 @@ function addHierarchicalNumberingWeb(html) {
     processed = processed.replace(/<h2>([\s\S]*?)<\/h2>/gi, (match, content) => {
       h2Counter++;
       h3Counter = 0;
+      h4Counter = 0;
+      h5Counter = 0;
+      h6Counter = 0;
       const letter = toCapitalLetter(h2Counter);
       return `<h2>${letter}.<span style="display:inline-block;width:0.8em"></span>${content}</h2>`;
     });
@@ -679,7 +715,33 @@ function addHierarchicalNumberingWeb(html) {
     // Number H3 headings with Arabic numerals
     processed = processed.replace(/<h3>([\s\S]*?)<\/h3>/gi, (match, content) => {
       h3Counter++;
+      h4Counter = 0;
+      h5Counter = 0;
+      h6Counter = 0;
       return `<h3>${h3Counter}.<span style="display:inline-block;width:0.8em"></span>${content}</h3>`;
+    });
+
+    // Number H4 headings with lowercase letters (a, b, c, ...)
+    processed = processed.replace(/<h4>([\s\S]*?)<\/h4>/gi, (match, content) => {
+      h4Counter++;
+      h5Counter = 0;
+      h6Counter = 0;
+      const letter = toLowerLetter(h4Counter);
+      return `<h4>${letter}.<span style="display:inline-block;width:0.8em"></span>${content}</h4>`;
+    });
+
+    // Number H5 headings with lowercase Roman numerals (i, ii, iii, ...)
+    processed = processed.replace(/<h5>([\s\S]*?)<\/h5>/gi, (match, content) => {
+      h5Counter++;
+      h6Counter = 0;
+      const roman = toLowerRoman(h5Counter);
+      return `<h5>${roman}.<span style="display:inline-block;width:0.8em"></span>${content}</h5>`;
+    });
+
+    // Number H6 headings with parenthetical numbers ((1), (2), (3), ...)
+    processed = processed.replace(/<h6>([\s\S]*?)<\/h6>/gi, (match, content) => {
+      h6Counter++;
+      return `<h6>(${h6Counter})<span style="display:inline-block;width:0.8em"></span>${content}</h6>`;
     });
 
     // Number paragraphs, excluding those inside lists and blockquotes
