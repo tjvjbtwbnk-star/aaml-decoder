@@ -229,15 +229,22 @@ function generateWebHTML(parsed, registry, notesRegistry, title) {
   const bodyHTML = marked(processedContent);
   const numberedBody = addHierarchicalNumberingWeb(bodyHTML);
 
-  // Generate reference data JSON
-  const refDataJSON = JSON.stringify(references.map(r => ({
-    number: r.number,
-    resolved: r.resolved,
-    noteId: r.noteId,
-    title: r.formattedTitle || r.note?.title || r.noteId,
-    content: r.note?.content || 'No content available',
-    pinpoint: r.pinpoint
-  })));
+  // Generate reference data JSON (truncate content to keep HTML size manageable)
+  const CONTENT_PREVIEW_LIMIT = 500;
+  const refDataJSON = JSON.stringify(references.map(r => {
+    const raw = r.note?.content || 'No content available';
+    const preview = raw.length > CONTENT_PREVIEW_LIMIT
+      ? raw.slice(0, CONTENT_PREVIEW_LIMIT) + '...'
+      : raw;
+    return {
+      number: r.number,
+      resolved: r.resolved,
+      noteId: r.noteId,
+      title: r.formattedTitle || r.note?.title || r.noteId,
+      content: preview,
+      pinpoint: r.pinpoint
+    };
+  }));
 
   return `<!DOCTYPE html>
 <html>
@@ -665,110 +672,128 @@ function generateWebHTML(parsed, registry, notesRegistry, title) {
 }
 
 /**
- * Add hierarchical heading numbers and paragraph numbers for web view
+ * Add hierarchical heading numbers and paragraph numbers for web view.
+ *
+ * Uses a single-pass tokenizer instead of repeated cross-line regex,
+ * which avoids backtracking issues on large HTML documents and
+ * correctly handles nested lists/blockquotes.
  */
 function addHierarchicalNumberingWeb(html) {
-  let h1Counter = 0;
-  let h2Counter = 0;
-  let h3Counter = 0;
-  let h4Counter = 0;
-  let h5Counter = 0;
-  let h6Counter = 0;
+  let h1 = 0, h2 = 0, h3 = 0, h4 = 0, h5 = 0, h6 = 0;
   let paraNumber = 1;
 
-  // Split by H1 to add section dividers
-  const h1Pattern = /(<h1>[\s\S]*?<\/h1>)/gi;
-  const parts = html.split(h1Pattern);
+  // Single-pass: split HTML into tag tokens and text segments
+  // The regex captures HTML tags; non-matching segments are text between tags
+  const TAG_RE = /<(\/?)(\w+)([^>]*)>/g;
+  const result = [];
+  let lastIndex = 0;
+  let nestDepth = 0; // depth inside ul/ol/blockquote (skip para numbering)
+  const NESTING_TAGS = new Set(['ul', 'ol', 'blockquote']);
 
-  const processedParts = parts.map((part, index) => {
-    let processed = part;
-
-    // Number H1 headings with Roman numerals
-    if (processed.match(/^<h1>/i)) {
-      h1Counter++;
-      h2Counter = 0;
-      h3Counter = 0;
-      h4Counter = 0;
-      h5Counter = 0;
-      h6Counter = 0;
-      const roman = toRoman(h1Counter);
-      processed = processed.replace(/<h1>([\s\S]*?)<\/h1>/i, `<h1>${roman}.<span style="display:inline-block;width:0.8em"></span>$1</h1>`);
-
-      // Add section divider before H1 (except the first one)
-      if (h1Counter > 1) {
-        processed = `<div class="section-divider"></div>` + processed;
-      }
-      return processed;
+  let match;
+  while ((match = TAG_RE.exec(html)) !== null) {
+    // Push any text before this tag
+    if (match.index > lastIndex) {
+      result.push(html.slice(lastIndex, match.index));
     }
 
-    // Number H2 headings with capital letters
-    processed = processed.replace(/<h2>([\s\S]*?)<\/h2>/gi, (match, content) => {
-      h2Counter++;
-      h3Counter = 0;
-      h4Counter = 0;
-      h5Counter = 0;
-      h6Counter = 0;
-      const letter = toCapitalLetter(h2Counter);
-      return `<h2>${letter}.<span style="display:inline-block;width:0.8em"></span>${content}</h2>`;
-    });
+    const [fullTag, isClose, tagName, attrs] = match;
+    const lcTag = tagName.toLowerCase();
 
-    // Number H3 headings with Arabic numerals
-    processed = processed.replace(/<h3>([\s\S]*?)<\/h3>/gi, (match, content) => {
-      h3Counter++;
-      h4Counter = 0;
-      h5Counter = 0;
-      h6Counter = 0;
-      return `<h3>${h3Counter}.<span style="display:inline-block;width:0.8em"></span>${content}</h3>`;
-    });
+    // Track nesting depth for list/blockquote elements
+    if (NESTING_TAGS.has(lcTag)) {
+      if (isClose) { nestDepth = Math.max(0, nestDepth - 1); }
+      else { nestDepth++; }
+      result.push(fullTag);
+      lastIndex = TAG_RE.lastIndex;
+      continue;
+    }
 
-    // Number H4 headings with lowercase letters (a, b, c, ...)
-    processed = processed.replace(/<h4>([\s\S]*?)<\/h4>/gi, (match, content) => {
-      h4Counter++;
-      h5Counter = 0;
-      h6Counter = 0;
-      const letter = toLowerLetter(h4Counter);
-      return `<h4>${letter}.<span style="display:inline-block;width:0.8em"></span>${content}</h4>`;
-    });
+    // Number headings (only process opening tags)
+    if (!isClose && /^h[1-6]$/.test(lcTag)) {
+      const level = parseInt(lcTag[1], 10);
+      // Find the closing tag for this heading
+      const closeTag = `</${lcTag}>`;
+      const closeIdx = html.indexOf(closeTag, TAG_RE.lastIndex);
+      if (closeIdx === -1) {
+        result.push(fullTag);
+        lastIndex = TAG_RE.lastIndex;
+        continue;
+      }
+      const content = html.slice(TAG_RE.lastIndex, closeIdx);
+      const spacer = '<span style="display:inline-block;width:0.8em"></span>';
+      let prefix = '';
 
-    // Number H5 headings with lowercase Roman numerals (i, ii, iii, ...)
-    processed = processed.replace(/<h5>([\s\S]*?)<\/h5>/gi, (match, content) => {
-      h5Counter++;
-      h6Counter = 0;
-      const roman = toLowerRoman(h5Counter);
-      return `<h5>${roman}.<span style="display:inline-block;width:0.8em"></span>${content}</h5>`;
-    });
-
-    // Number H6 headings with parenthetical numbers ((1), (2), (3), ...)
-    processed = processed.replace(/<h6>([\s\S]*?)<\/h6>/gi, (match, content) => {
-      h6Counter++;
-      return `<h6>(${h6Counter})<span style="display:inline-block;width:0.8em"></span>${content}</h6>`;
-    });
-
-    // Number paragraphs, excluding those inside lists and blockquotes
-    const excludePattern = /(<(?:ul|ol|blockquote)[\s\S]*?<\/(?:ul|ol|blockquote)>)/gi;
-    const contentParts = processed.split(excludePattern);
-
-    processed = contentParts.map(contentPart => {
-      if (contentPart.match(/^<(?:ul|ol|blockquote)/i)) {
-        return contentPart;
+      switch (level) {
+        case 1:
+          h1++; h2 = h3 = h4 = h5 = h6 = 0;
+          prefix = toRoman(h1) + '.';
+          if (h1 > 1) result.push('<div class="section-divider"></div>');
+          break;
+        case 2:
+          h2++; h3 = h4 = h5 = h6 = 0;
+          prefix = toCapitalLetter(h2) + '.';
+          break;
+        case 3:
+          h3++; h4 = h5 = h6 = 0;
+          prefix = h3 + '.';
+          break;
+        case 4:
+          h4++; h5 = h6 = 0;
+          prefix = toLowerLetter(h4) + '.';
+          break;
+        case 5:
+          h5++; h6 = 0;
+          prefix = toLowerRoman(h5) + '.';
+          break;
+        case 6:
+          h6++;
+          prefix = `(${h6})`;
+          break;
       }
 
-      return contentPart.replace(/<p>([\s\S]*?)<\/p>/g, (match, content) => {
-        const trimmed = content.trim();
-        if (!trimmed) return match;
+      result.push(`<${lcTag}${attrs}>${prefix}${spacer}${content}</${lcTag}>`);
+      TAG_RE.lastIndex = closeIdx + closeTag.length;
+      lastIndex = TAG_RE.lastIndex;
+      continue;
+    }
 
+    // Number paragraphs (only at top-level, not inside lists/blockquotes)
+    if (!isClose && lcTag === 'p' && nestDepth === 0) {
+      const closeTag = '</p>';
+      const closeIdx = html.indexOf(closeTag, TAG_RE.lastIndex);
+      if (closeIdx === -1) {
+        result.push(fullTag);
+        lastIndex = TAG_RE.lastIndex;
+        continue;
+      }
+      const content = html.slice(TAG_RE.lastIndex, closeIdx);
+      if (content.trim()) {
         const num = paraNumber++;
-        return `<div class="para-numbered">
-      <span class="para-number">${num}.</span>
-      <div class="para-content">${content}</div>
-    </div>`;
-      });
-    }).join('');
+        result.push(
+          `<div class="para-numbered">\n` +
+          `      <span class="para-number">${num}.</span>\n` +
+          `      <div class="para-content">${content}</div>\n` +
+          `    </div>`
+        );
+      } else {
+        result.push(`<p${attrs}>${content}</p>`);
+      }
+      TAG_RE.lastIndex = closeIdx + closeTag.length;
+      lastIndex = TAG_RE.lastIndex;
+      continue;
+    }
 
-    return processed;
-  });
+    result.push(fullTag);
+    lastIndex = TAG_RE.lastIndex;
+  }
 
-  return processedParts.join('');
+  // Push any remaining text after the last tag
+  if (lastIndex < html.length) {
+    result.push(html.slice(lastIndex));
+  }
+
+  return result.join('');
 }
 
 module.exports = {

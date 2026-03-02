@@ -7,10 +7,30 @@
  */
 
 const fs = require('fs').promises;
-const { execSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const execFileAsync = promisify(execFile);
+const { existsSync } = require('fs');
 const path = require('path');
 const os = require('os');
 const { resolveIdentifierToNote, DOC_REFERENCE_REGEX, INTERNAL_REFERENCE_REGEX, ANCHOR_REGEX } = require('./parser');
+
+/**
+ * Resolve the typst binary path.
+ * Checks common locations if 'typst' is not on PATH.
+ */
+function findTypstBinary() {
+  const candidates = [
+    'typst',                                              // on PATH
+    path.join(os.homedir(), '.local', 'bin', 'typst'),    // user-local install
+    '/usr/local/bin/typst',
+  ];
+  for (const bin of candidates) {
+    if (bin === 'typst') return bin;  // let execFile try PATH first
+    if (existsSync(bin)) return bin;
+  }
+  return 'typst'; // fall back, let execFile produce a clear error
+}
 
 // Month names for date formatting
 const MONTH_NAMES = [
@@ -99,6 +119,14 @@ function markdownToTypst(content, registry, notesRegistry) {
 
   // Convert numbered lists
   result = result.replace(/^\d+\. (.+)$/gm, '+ $1');
+
+  // Escape characters that are special in Typst but not in Markdown.
+  // Must run AFTER blockquote/heading/list conversions (which consume >, #, etc.)
+  // and BEFORE reference→footnote conversion (escapeTypst handles footnote content).
+  result = result.replace(/</g, '\\<');
+  result = result.replace(/>/g, '\\>');
+  result = result.replace(/\$/g, '\\$');
+  result = result.replace(/@/g, '\\@');
 
   // NOW process AAML references - convert to Typst footnotes
   // (after markdown conversions, so footnote content won't be affected)
@@ -372,20 +400,22 @@ ${exhibitList}
   try {
     await fs.writeFile(tempTyp, fullDocument, 'utf-8');
 
-    // Compile with Typst
-    const cmd = `typst compile "${tempTyp}" "${outputPath}"`;
-
+    const typstBin = findTypstBinary();
     console.log('Generating PDF with Typst...');
-    execSync(cmd, { stdio: 'pipe' });
+    const { stderr } = await execFileAsync(typstBin, ['compile', tempTyp, outputPath], {
+      maxBuffer: 50 * 1024 * 1024, // 50 MB
+      timeout: 120_000,            // 2 min
+    });
+    if (stderr) console.warn('Typst warnings:', stderr);
     console.log(`PDF saved to: ${outputPath}`);
 
     return { success: true, outputPath };
 
   } catch (error) {
-    console.error('Typst compilation error:', error.message);
-    throw error;
+    const msg = error.stderr || error.message;
+    console.error('Typst compilation error:', msg);
+    throw new Error(`Typst compilation failed: ${msg}`);
   } finally {
-    // Clean up temp file
     try {
       await fs.unlink(tempTyp);
     } catch {}

@@ -17,70 +17,59 @@ const path = require('path');
 const matter = require('gray-matter');
 
 /**
- * Load all notes from the Notes directory
+ * Infer note type from a directory name
+ */
+const TYPE_FROM_DIR = {
+  'exhibits': 'exhibit',
+  'authorities': 'authority',
+  'witness': 'witness',
+  'experts': 'expert',
+  'procedural': 'procedural',
+  'sections': 'section',
+  'tables': 'table',
+  'figures': 'figure',
+  'notes': 'note'
+};
+
+/**
+ * Load all notes from the Notes directory (recursive)
  */
 async function loadAllNotes(notesPath) {
   const registry = {};
-
-  // Subdirectories to scan (per AAML v1.1.1 spec)
-  const subdirs = [
-    'exhibits',
-    'authorities',
-    'witness',
-    'experts',
-    'procedural',
-    'sections',
-    'tables',
-    'figures',
-    'notes'
-  ];
-
-  for (const subdir of subdirs) {
-    const dirPath = path.join(notesPath, subdir);
-
-    try {
-      const files = await fs.readdir(dirPath);
-
-      for (const file of files) {
-        if (!file.endsWith('.md')) continue;
-
-        const filePath = path.join(dirPath, file);
-        const note = await loadNote(filePath, subdir);
-
-        if (note && note.id) {
-          registry[note.id] = note;
-        }
-      }
-    } catch (err) {
-      // Directory might not exist, that's OK
-      if (err.code !== 'ENOENT') {
-        console.warn(`Warning: Could not read ${dirPath}:`, err.message);
-      }
-    }
-  }
-
-  // Also check root Notes directory
-  try {
-    const rootFiles = await fs.readdir(notesPath);
-
-    for (const file of rootFiles) {
-      if (!file.endsWith('.md')) continue;
-
-      const filePath = path.join(notesPath, file);
-      const stat = await fs.stat(filePath);
-
-      if (stat.isFile()) {
-        const note = await loadNote(filePath, 'note');
-        if (note && note.id) {
-          registry[note.id] = note;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn(`Warning: Could not read root notes:`, err.message);
-  }
-
+  await scanDirectory(notesPath, registry);
   return registry;
+}
+
+/**
+ * Recursively scan a directory for .md note files
+ */
+async function scanDirectory(dirPath, registry) {
+  let entries;
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.warn(`Warning: Could not read ${dirPath}:`, err.message);
+    }
+    return;
+  }
+
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+
+    if (entry.isDirectory()) {
+      await scanDirectory(fullPath, registry);
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      // Infer type from nearest parent directory name if it matches a known type
+      const parentDir = path.basename(dirPath);
+      const inferredType = TYPE_FROM_DIR[parentDir] || null;
+
+      const note = await loadNote(fullPath, inferredType);
+      if (note && note.id) {
+        registry[note.id] = note;
+      }
+    }
+  }
 }
 
 /**
@@ -98,19 +87,8 @@ async function loadNote(filePath, inferredType) {
     // Determine ID priority: uid > id > filename
     const id = frontmatter.uid || frontmatter.id || toValidId(filenameNoExt);
 
-    // Determine type from frontmatter or infer from directory
-    const typeMap = {
-      'exhibits': 'exhibit',
-      'authorities': 'authority',
-      'witness': 'witness',
-      'experts': 'expert',
-      'procedural': 'procedural',
-      'sections': 'section',
-      'tables': 'table',
-      'figures': 'figure',
-      'notes': 'note'
-    };
-    const type = frontmatter.type || typeMap[inferredType] || 'exhibit';
+    // Determine type from frontmatter or infer from parent directory
+    const type = frontmatter.type || TYPE_FROM_DIR[inferredType] || inferredType || 'exhibit';
 
     // Parse aliases (ensure it's an array)
     let aliases = [];

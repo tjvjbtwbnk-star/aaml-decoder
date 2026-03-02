@@ -460,59 +460,79 @@ function buildReferenceRegistry(references, notesRegistry) {
 }
 
 /**
- * Resolve an identifier to a note using AAML v1.1.1 resolution order:
- * 1. Exact filename match (including extension)
- * 2. Filename without extension
- * 3. UID match
- * 4. Alias match (case-insensitive)
+ * Lazily-built lookup index for O(1) reference resolution.
+ * Keyed by the notesRegistry object so it rebuilds if the registry changes.
  */
-function resolveIdentifierToNote(identifier, notesRegistry) {
-  const normalizedId = identifier.toLowerCase().trim();
+const _indexCache = new WeakMap();
 
-  // Search through all notes
+function getOrBuildIndex(notesRegistry) {
+  if (_indexCache.has(notesRegistry)) return _indexCache.get(notesRegistry);
+
+  const index = new Map();       // lowercased key → note
+  const normalized = new Map();  // normalizeIdentifier(key) → note
+
   for (const [noteId, note] of Object.entries(notesRegistry)) {
-    // 1. Exact filename match
-    if (note.filename && note.filename.toLowerCase() === normalizedId) {
-      return note;
-    }
+    // Index by note id
+    const lcId = noteId.toLowerCase();
+    if (!index.has(lcId)) index.set(lcId, note);
+    const normId = normalizeIdentifier(noteId);
+    if (normId && !normalized.has(normId)) normalized.set(normId, note);
 
-    // 2. Filename without extension
+    // Index by filename
     if (note.filename) {
-      const filenameNoExt = note.filename.replace(/\.[^/.]+$/, '').toLowerCase();
-      if (filenameNoExt === normalizedId || filenameNoExt === normalizedId.replace(/\.[^/.]+$/, '')) {
-        return note;
-      }
+      const lcFn = note.filename.toLowerCase();
+      if (!index.has(lcFn)) index.set(lcFn, note);
+      const fnNoExt = note.filename.replace(/\.[^/.]+$/, '').toLowerCase();
+      if (!index.has(fnNoExt)) index.set(fnNoExt, note);
     }
 
-    // 3. UID match
-    if (note.uid && typeof note.uid === 'string' && note.uid.toLowerCase() === normalizedId) {
-      return note;
+    // Index by uid
+    if (note.uid && typeof note.uid === 'string') {
+      const lcUid = note.uid.toLowerCase();
+      if (!index.has(lcUid)) index.set(lcUid, note);
+      const normUid = normalizeIdentifier(note.uid);
+      if (normUid && !normalized.has(normUid)) normalized.set(normUid, note);
     }
 
-    // Also check the note's id field
-    if (noteId.toLowerCase() === normalizedId) {
-      return note;
-    }
-
-    // 4. Alias match (case-insensitive)
-    if (note.aliases && Array.isArray(note.aliases)) {
+    // Index by aliases
+    if (Array.isArray(note.aliases)) {
       for (const alias of note.aliases) {
-        if (typeof alias === 'string' && alias.toLowerCase() === normalizedId) {
-          return note;
+        if (typeof alias === 'string') {
+          const lcAlias = alias.toLowerCase();
+          if (!index.has(lcAlias)) index.set(lcAlias, note);
         }
       }
     }
   }
 
-  // Try normalized comparison as fallback
-  const normalizedSearch = normalizeIdentifier(identifier);
-  for (const [noteId, note] of Object.entries(notesRegistry)) {
-    if (normalizeIdentifier(noteId) === normalizedSearch) {
-      return note;
-    }
-    if (note.uid && typeof note.uid === 'string' && normalizeIdentifier(note.uid) === normalizedSearch) {
-      return note;
-    }
+  const result = { index, normalized };
+  _indexCache.set(notesRegistry, result);
+  return result;
+}
+
+/**
+ * Resolve an identifier to a note using AAML v1.1.1 resolution order:
+ * 1. Exact filename match (including extension)
+ * 2. Filename without extension
+ * 3. UID match
+ * 4. Alias match (case-insensitive)
+ * 5. Normalized fallback
+ *
+ * Uses a pre-built index for O(1) lookups.
+ */
+function resolveIdentifierToNote(identifier, notesRegistry) {
+  const { index, normalized } = getOrBuildIndex(notesRegistry);
+  const key = identifier.toLowerCase().trim();
+
+  // Direct lookup covers filename, filename-no-ext, uid, id, and aliases
+  const direct = index.get(key) || index.get(key.replace(/\.[^/.]+$/, ''));
+  if (direct) return direct;
+
+  // Normalized fallback
+  const normKey = normalizeIdentifier(identifier);
+  if (normKey) {
+    const fallback = normalized.get(normKey);
+    if (fallback) return fallback;
   }
 
   return null;
